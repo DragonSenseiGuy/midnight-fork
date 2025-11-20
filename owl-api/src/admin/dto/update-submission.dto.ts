@@ -8,7 +8,12 @@ export class UpdateSubmissionDto {
   @IsString()
   @IsOptional()
   @MaxLength(500)
-  hoursJustification?: string;
+  userFeedback?: string; // Feedback for the user, sent via email, stored in submission table
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  hoursJustification?: string; // Admin's internal justification, synced to Airtable, stored in project table
 
   @IsEnum(['pending', 'approved', 'rejected'])
   @IsOptional()

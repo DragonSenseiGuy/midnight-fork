@@ -22,7 +22,7 @@
 		submissionId: number;
 		approvalStatus: string;
 		approvedHours: number | null;
-		hoursJustification: string | null;
+		hoursJustification: string | null; // User feedback - what user submits with their submission
 		description: string | null;
 		playableUrl: string | null;
 		repoUrl: string | null;
@@ -40,6 +40,7 @@
 			nowHackatimeHours: number | null;
 			nowHackatimeProjects: string[] | null;
 			approvedHours: number | null;
+			hoursJustification: string | null; // Admin's justification - synced to Airtable
 			user: AdminLightUser;
 		};
 	};
@@ -55,6 +56,7 @@
 		repoUrl: string | null;
 		screenshotUrl: string | null;
 		approvedHours: number | null;
+		hoursJustification: string | null; // Admin's justification - synced to Airtable
 		isLocked: boolean;
 		createdAt: string;
 		updatedAt: string;
@@ -96,12 +98,15 @@ const toSubmissionDraft = (submission: AdminSubmission) => ({
 	approvedHours: submission.project.approvedHours !== null
 		? submission.project.approvedHours.toString()
 		: (submission.project.nowHackatimeHours !== null ? submission.project.nowHackatimeHours.toFixed(1) : ''),
-	hoursJustification: submission.hoursJustification ?? '',
+	// User feedback - what admin sends to user via email
+	userFeedback: submission.hoursJustification ?? '',
+	// Hours justification - admin's internal notes for Airtable
+	hoursJustification: submission.project.hoursJustification ?? '',
 	sendEmailNotification: false
 });
 
 const buildSubmissionDrafts = (list: AdminSubmission[]) => {
-	const drafts: Record<number, { approvalStatus: string; approvedHours: string; hoursJustification: string; sendEmailNotification: boolean }> = {};
+	const drafts: Record<number, { approvalStatus: string; approvedHours: string; userFeedback: string; hoursJustification: string; sendEmailNotification: boolean }> = {};
 	for (const submission of list) {
 		drafts[submission.submissionId] = toSubmissionDraft(submission);
 	}
@@ -181,6 +186,7 @@ function generateBillyLink(hackatimeAccount: string | null): string | null {
 
 const statusIdFor = (submissionId: number) => `submission-${submissionId}-status`;
 const hoursIdFor = (submissionId: number) => `submission-${submissionId}-hours`;
+const userFeedbackIdFor = (submissionId: number) => `submission-${submissionId}-user-feedback`;
 const justificationIdFor = (submissionId: number) => `submission-${submissionId}-justification`;
 
 const apiUrl = data.apiUrl;
@@ -190,7 +196,7 @@ let projectsLoading = $state(false);
 let usersLoading = $state(false);
 let metricsLoading = $state(false);
 
-let submissionDrafts = $state<Record<number, { approvalStatus: string; approvedHours: string; hoursJustification: string; sendEmailNotification: boolean }>>(
+let submissionDrafts = $state<Record<number, { approvalStatus: string; approvedHours: string; userFeedback: string; hoursJustification: string; sendEmailNotification: boolean }>>(
 	buildSubmissionDrafts(data.submissions ?? [])
 );
 let submissionSaving = $state<Record<number, boolean>>({});
@@ -371,6 +377,7 @@ async function recalculateAllProjectsHours() {
 		const payload = {
 			approvalStatus: draft.approvalStatus,
 			approvedHours: draft.approvedHours === '' ? null : parseFloat(draft.approvedHours),
+			userFeedback: draft.userFeedback === '' ? null : draft.userFeedback,
 			hoursJustification: draft.hoursJustification === '' ? null : draft.hoursJustification,
 			sendEmail: shouldSendEmail,
 		};
@@ -409,6 +416,7 @@ async function recalculateAllProjectsHours() {
 		submissionSuccess = { ...submissionSuccess, [submission.submissionId]: '' };
 
 		const draft = submissionDrafts[submission.submissionId];
+		const userFeedback = draft?.userFeedback || '';
 		const hoursJustification = draft?.hoursJustification || '';
 
 		try {
@@ -416,7 +424,7 @@ async function recalculateAllProjectsHours() {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'include',
-				body: JSON.stringify({ hoursJustification }),
+				body: JSON.stringify({ userFeedback, hoursJustification }),
 			});
 
 			if (!response.ok) {
@@ -1177,8 +1185,15 @@ function normalizeUrl(url: string | null): string | null {
 
 										{#if selectedSubmission.hoursJustification}
 											<div class="space-y-2 bg-blue-950/30 border border-blue-800 rounded-lg p-4">
-												<h4 class="text-sm font-semibold uppercase tracking-wide text-blue-300">Hours Justification</h4>
+												<h4 class="text-sm font-semibold uppercase tracking-wide text-blue-300">User Feedback</h4>
 												<p class="text-sm text-gray-300">{selectedSubmission.hoursJustification}</p>
+											</div>
+										{/if}
+
+										{#if selectedSubmission.project.hoursJustification}
+											<div class="space-y-2 bg-purple-950/30 border border-purple-800 rounded-lg p-4">
+												<h4 class="text-sm font-semibold uppercase tracking-wide text-purple-300">Hours Justification (Admin Only)</h4>
+												<p class="text-sm text-gray-300">{selectedSubmission.project.hoursJustification}</p>
 											</div>
 										{/if}
 
@@ -1267,12 +1282,21 @@ function normalizeUrl(url: string | null): string | null {
 											/>
 										</div>
 										<div class="space-y-2">
-											<label class="text-sm font-medium text-gray-300" for={justificationIdFor(selectedSubmission.submissionId)}>Hours Justification</label>
+											<label class="text-sm font-medium text-gray-300" for={userFeedbackIdFor(selectedSubmission.submissionId)}>User Feedback (sent via email)</label>
+											<textarea
+												id={userFeedbackIdFor(selectedSubmission.submissionId)}
+												class="w-full rounded-lg border border-blue-600 bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+												rows="2"
+												placeholder="Feedback to send to the user..."
+												bind:value={submissionDrafts[selectedSubmission.submissionId].userFeedback}></textarea>
+										</div>
+										<div class="space-y-2">
+											<label class="text-sm font-medium text-gray-300" for={justificationIdFor(selectedSubmission.submissionId)}>Hours Justification (admin only, synced to Airtable)</label>
 											<textarea
 												id={justificationIdFor(selectedSubmission.submissionId)}
-												class="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+												class="w-full rounded-lg border border-purple-600 bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
 												rows="2"
-												placeholder="Explain the approved hours..."
+												placeholder="Internal justification for Airtable..."
 												bind:value={submissionDrafts[selectedSubmission.submissionId].hoursJustification}></textarea>
 										</div>
 									</div>

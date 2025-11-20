@@ -90,8 +90,8 @@ export class AdminService {
     if (updateSubmissionDto.approvedHours !== undefined) {
       updateData.approvedHours = updateSubmissionDto.approvedHours;
     }
-    if (updateSubmissionDto.hoursJustification !== undefined) {
-      updateData.hoursJustification = updateSubmissionDto.hoursJustification;
+    if (updateSubmissionDto.userFeedback !== undefined) {
+      updateData.hoursJustification = updateSubmissionDto.userFeedback;
     }
     if (updateSubmissionDto.approvalStatus !== undefined) {
       updateData.approvalStatus = updateSubmissionDto.approvalStatus;
@@ -123,6 +123,11 @@ export class AdminService {
     if (updateSubmissionDto.approvedHours !== undefined) {
       projectUpdateData.approvedHours = updateSubmissionDto.approvedHours;
     }
+    // hoursJustification is now admin-only for the project (stored in the updateSubmissionDto but used for airtable)
+    // We store it in the project table for admin reference and Airtable sync only
+    if (updateSubmissionDto.hoursJustification !== undefined) {
+      projectUpdateData.hoursJustification = updateSubmissionDto.hoursJustification;
+    }
     if (updateSubmissionDto.approvalStatus === 'approved') {
       // When approving, update project with submission data
       projectUpdateData.playableUrl = submission.playableUrl;
@@ -145,6 +150,11 @@ export class AdminService {
       if (!isResubmission) {
         // First submission - create Airtable record
         try {
+          // Get the project record to access the admin's hoursJustification
+          const projectRecord = await this.prisma.project.findUnique({
+            where: { projectId: submission.projectId },
+          });
+
           const approvedProjectData = {
             user: {
               firstName: submission.project.user.firstName,
@@ -163,7 +173,7 @@ export class AdminService {
               repoUrl: submission.repoUrl || submission.project.repoUrl || '',
               screenshotUrl: submission.screenshotUrl || submission.project.screenshotUrl || '',
               approvedHours: updateSubmissionDto.approvedHours || 0,
-              hoursJustification: updateSubmissionDto.hoursJustification || '',
+              hoursJustification: projectRecord?.hoursJustification || updateSubmissionDto.hoursJustification || '',
               description: submission.description || submission.project.description || undefined,
             },
           };
@@ -189,13 +199,17 @@ export class AdminService {
       } else {
         // Resubmission - update existing Airtable record
         try {
+          const projectRecord = await this.prisma.project.findUnique({
+            where: { projectId: submission.projectId },
+          });
+
           await this.airtableService.updateApprovedProject(submission.project.airtableRecId, {
             playableUrl: submission.playableUrl || undefined,
             repoUrl: submission.repoUrl || undefined,
             screenshotUrl: submission.screenshotUrl || undefined,
             description: submission.description || undefined,
             approvedHours: updateSubmissionDto.approvedHours,
-            hoursJustification: updateSubmissionDto.hoursJustification,
+            hoursJustification: projectRecord?.hoursJustification || updateSubmissionDto.hoursJustification,
           });
         } catch (error) {
           console.error('Error updating Approved Projects record in Airtable:', error);
@@ -225,7 +239,7 @@ export class AdminService {
               projectId: updatedSubmission.project.projectId,
               approved: updateSubmissionDto.approvalStatus === 'approved',
               approvedHours: updateSubmissionDto.approvedHours,
-              feedback: updateSubmissionDto.hoursJustification,
+              feedback: updatedSubmission.hoursJustification,
             },
           );
           console.log(`Email sent for submission ${submissionId} because sendEmail was explicitly true`);
@@ -296,7 +310,7 @@ export class AdminService {
     return updatedSubmission;
   }
 
-  async quickApproveSubmission(submissionId: number, adminUserId: number, providedJustification?: string) {
+  async quickApproveSubmission(submissionId: number, adminUserId: number, providedJustification?: string, userFeedback?: string) {
     const submission = await this.prisma.submission.findUnique({
       where: { submissionId },
       include: {
@@ -314,12 +328,12 @@ export class AdminService {
 
     const hackatimeHours = submission.project.nowHackatimeHours || 0;
     const autoJustification = `Quick approved with ${hackatimeHours.toFixed(1)} Hackatime hours tracked on Midnight project.`;
-    const hoursJustification = providedJustification || submission.hoursJustification || autoJustification;
+    const adminHoursJustification = providedJustification || autoJustification;
 
     const updateData: any = {
       approvalStatus: 'approved',
       approvedHours: hackatimeHours,
-      hoursJustification: hoursJustification,
+      hoursJustification: userFeedback || '',
       reviewedBy: adminUserId.toString(),
       reviewedAt: new Date(),
     };
@@ -343,12 +357,11 @@ export class AdminService {
       },
     });
 
-    // Update project with new data from submission
     await this.prisma.project.update({
       where: { projectId: submission.projectId },
       data: {
         approvedHours: hackatimeHours,
-        hoursJustification: hoursJustification,
+        hoursJustification: adminHoursJustification,
         playableUrl: submission.playableUrl,
         repoUrl: submission.repoUrl,
         screenshotUrl: submission.screenshotUrl,
@@ -356,7 +369,6 @@ export class AdminService {
       },
     });
 
-    // Check if this is a resubmission (project already has Airtable record)
     const isResubmission = !!submission.project.airtableRecId;
 
     if (!isResubmission) {
@@ -388,7 +400,7 @@ export class AdminService {
             repoUrl: repoUrl,
             screenshotUrl: submission.screenshotUrl || submission.project.screenshotUrl || '',
             approvedHours: hackatimeHours,
-            hoursJustification: hoursJustification,
+            hoursJustification: adminHoursJustification,
             description: submission.description || submission.project.description || undefined,
           },
         };
@@ -420,17 +432,13 @@ export class AdminService {
           screenshotUrl: submission.screenshotUrl || undefined,
           description: submission.description || undefined,
           approvedHours: hackatimeHours,
-          hoursJustification: hoursJustification,
+          hoursJustification: adminHoursJustification,
         });
       } catch (error) {
         console.error('Error updating Approved Projects record in Airtable:', error);
       }
     }
 
-    // Note: quickApproveSubmission doesn't send email by default
-    // Email should be sent via the regular updateSubmission endpoint with sendEmail flag
-
-    // Auto-approve pending edit requests when submission is approved
     try {
       const pendingEditRequests = await this.prisma.editRequest.findMany({
         where: {

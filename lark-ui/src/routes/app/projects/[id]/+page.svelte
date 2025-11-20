@@ -129,10 +129,10 @@
             </div>
           </div>
 
-          {#if status === 'rejected'}
+          {#if status === 'rejected' || status === 'approved'}
             <div class="tracking-feedback">
               <div class="feedback-body">
-                <div class="feedback-label">Reviewer Feedback</div>
+                <div class="feedback-label">{status === 'approved' ? 'Feedback' : 'Reviewer Feedback'}</div>
                 <div class="feedback-text">{submission.hoursJustification || 'No feedback provided'}</div>
               </div>
             </div>
