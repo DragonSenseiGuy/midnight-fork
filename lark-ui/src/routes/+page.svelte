@@ -335,7 +335,7 @@
           >
             Spend 50 hours building personal projects, fly to a <br /><span
               class="md:text-[#f24b4b]">murder mystery</span
-            > hackathon in Vienna, Austria - Jan 2026
+            > hackathon in Vienna, Austria - Jan 4 to 8, 2026
           </p>
 
           <div
