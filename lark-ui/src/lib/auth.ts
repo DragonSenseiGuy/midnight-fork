@@ -142,6 +142,21 @@ export async function getProject(id: string, fetchFn: FetchFunction = fetch) {
   }
 }
 
+export async function deleteProject(projectId: string, fetchFn: FetchFunction = fetch) {
+  const response = await fetchFn(`${apiUrl}/api/projects/auth/${projectId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include'
+  });
+
+  if (response.ok) {
+    return { success: true };
+  } else {
+    const error = await response.json().catch(() => ({ message: 'Failed to delete project' }));
+    return { success: false, error: error.message || 'Failed to delete project' };
+  }
+}
+
 export async function updateProject(projectId: string, project: Partial<Project>, fetchFn: FetchFunction = fetch) {
   const response = await fetchFn(`${apiUrl}/api/projects/auth/${projectId}`, {
     method: 'PUT',

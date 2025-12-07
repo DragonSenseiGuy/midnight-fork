@@ -148,9 +148,9 @@
                     {/if}
                 {/await}
             {/if}
-            <!-- <button onclick={onClose} class="close">
+            <button onclick={onClose} class="close">
                 <img src="/icons/remove.svg" alt="close" />
-            </button> -->
+            </button>
         </div>
     </div>
 </div>
@@ -188,6 +188,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: space-between;
+        padding-top: 20px;
+        padding-bottom: 20px;
     }
 
     .modal-title {
@@ -211,9 +213,19 @@
 
     .close {
         position: absolute;
-        top: 10px;
-        right: 10px;
+        top: 20px;
+        right: 20px;
         cursor: pointer;
+        background: transparent;
+        border: none;
+        padding: 8px;
+        z-index: 10;
+    }
+
+    .close img {
+        filter: brightness(0) invert(1);
+        width: 24px;
+        height: 24px;
     }
 
     .modal-text.error {

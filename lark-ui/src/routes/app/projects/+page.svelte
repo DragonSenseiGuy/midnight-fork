@@ -62,7 +62,7 @@
       <div class="no-projects">
         <h2 class="font-bold">You have no projects yet...</h2>
         <h3 class=""> Create one and it will appear here!</h3>
-          <button on:click={() => goto("/app/projects/create")} class="pushable-blue mt-[2vh]">
+          <button onclick={() => goto("/app/projects/create")} class="pushable-blue mt-[2vh]">
             <span
               class="front-blue font-['Moga',_sans-serif] text-[#fee1c0] text-[4vh] py-[1vh] text-center text-nowrap tracking-[3.84px] whitespace-pre"
             >

@@ -2,6 +2,7 @@
   import Button from '$lib/Button.svelte';
   import { goto } from '$app/navigation';
   import { projectPageState } from './state.svelte';
+  import { deleteProject, getProjects } from '$lib/auth';
 
   const project = projectPageState.project;
 
@@ -34,6 +35,35 @@
   }
   function openHackatimeAccountModal() {
     projectPageState.openHackatimeAccountModal = true;
+  }
+
+  let deletingProject = $state(false);
+  let showDeleteModal = $state(false);
+
+  function openDeleteModal() {
+    showDeleteModal = true;
+  }
+
+  function closeDeleteModal() {
+    showDeleteModal = false;
+  }
+
+  async function handleDeleteProject() {
+    if (!projectPageState.project) return;
+
+    deletingProject = true;
+    try {
+      const result = await deleteProject(projectPageState.project.projectId);
+      if (result.success) {
+        await goto('/app/projects');
+      } else {
+        alert(result.error || 'Failed to delete project');
+        deletingProject = false;
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete project');
+      deletingProject = false;
+    }
   }
 </script>
 
@@ -141,6 +171,23 @@
       {/if}
 </div>
 
+{#if showDeleteModal}
+  <div class="modal-overlay" onclick={closeDeleteModal}>
+    <div class="modal-box" onclick={(e) => e.stopPropagation()} role="dialog">
+      <div class="modal-content">
+        <h2 class="modal-title">Delete Project?</h2>
+        <p class="modal-text">
+          Are you sure you want to delete this project? This action cannot be undone.
+        </p>
+        <div class="multi-button">
+          <Button label="Cancel" color="blue" onclick={closeDeleteModal} disabled={deletingProject}/>
+          <Button label={deletingProject ? "Deleting..." : "Delete"} color="red" onclick={handleDeleteProject} disabled={deletingProject}/>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if projectPageState.user && projectPageState.user.hackatimeAccount}
       {#if projectPageState.project?.submissions && projectPageState.project.submissions.length > 0}
         {@const latestSubmission = projectPageState.project.submissions[projectPageState.project.submissions.length - 1]}
@@ -160,12 +207,20 @@
         <div class="submit-section">
           <Button label="EDIT" icon="edit" color="blue" onclick={() => goto(`/app/projects/${projectPageState.project?.projectId}/edit`)}/>
           <Button label="Submit" onclick={() => goto(`/app/projects/${projectPageState.project?.projectId}/submit`)}/>
+          {#if projectPageState.project?.submissions && projectPageState.project.submissions.length === 0}
+            <Button label="" icon="remove" color="red" onclick={openDeleteModal} disabled={deletingProject}/>
+          {/if}
         </div>
       {:else}
         <div class="submit-section-inital">
           <Button label="LINK HACKATIME Project" icon="link" color="blue" onclick={openHackatimeProjectModal}/>
           <img alt="required!" src="/handdrawn_text/required.png" style="width: 140px;" />
         </div>
+        {#if projectPageState.project?.submissions && projectPageState.project.submissions.length === 0}
+          <div class="submit-section">
+            <Button label="" icon="remove" color="red" onclick={openDeleteModal} disabled={deletingProject}/>
+          </div>
+        {/if}
       {/if}
 {:else}
   <div class="submit-section-inital">
@@ -550,6 +605,98 @@
 
     .tracking-title {
       font-size: 16px;
+    }
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-box {
+    position: relative;
+    background-image: url("/shapes/shape-bg-1.svg");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    width: 795px;
+    height: 490px;
+    max-width: 90vw;
+    padding: 30px 37px;
+  }
+
+  .modal-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-title {
+    font-family: "Moga", sans-serif;
+    font-size: 44px;
+    color: #453b61;
+    text-align: center;
+    letter-spacing: -0.352px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .modal-text {
+    font-family: "PT Sans", sans-serif;
+    font-size: 24px;
+    color: #453b61;
+    text-align: center;
+    letter-spacing: -0.264px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .multi-button {
+    display: flex;
+    gap: 32px;
+  }
+
+  @media (max-width: 820px) {
+    .modal-content {
+      padding: 25px 30px;
+      gap: 40px;
+    }
+
+    .modal-title {
+      font-size: 32px;
+    }
+
+    .modal-text {
+      font-size: 20px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .modal-content {
+      padding: 20px 25px;
+      gap: 30px;
+    }
+
+    .modal-title {
+      font-size: 24px;
+    }
+
+    .modal-text {
+      font-size: 16px;
+    }
+
+    .multi-button {
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
     }
   }
 </style>

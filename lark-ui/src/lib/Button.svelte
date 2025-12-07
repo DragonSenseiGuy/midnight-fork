@@ -1,6 +1,6 @@
 <script lang="ts">
-    let { label, disabled = false, icon = undefined, color = '#F24B4B', onclick = () => {}, type = 'button', variant = 'default' }: {
-        label: string;
+    let { label = '', disabled = false, icon = undefined, color = '#F24B4B', onclick = () => {}, type = 'button', variant = 'default' }: {
+        label?: string;
         disabled?: boolean;
         onclick?: () => void;
         icon?: string;
@@ -35,8 +35,10 @@
 </script>
 
 <button class="pushable pushable-{variant}" disabled={disabled} onclick={onclick} style="--color: {color}" type={type}>
-    <span class="front front-{variant}">
-        <p>{label}</p>
+    <span class="front front-{variant}" class:icon-only={!label && icon}>
+        {#if label}
+            <p>{label}</p>
+        {/if}
         {#if icon}
             <img src="/icons/{icon}.svg" alt="icon" />
         {/if}
@@ -86,6 +88,15 @@
 
         transform: translateY(-6px) translateX(6px);
         transition: transform 600ms cubic-bezier(0.3, 0.7, 0.4, 1);        
+    }
+
+    .front.icon-only {
+        padding: 0 16px;
+    }
+
+    .front.icon-only img {
+        width: 24px;
+        height: 24px;
     }
 
     .front-default {

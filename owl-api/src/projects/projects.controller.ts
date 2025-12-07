@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Body, Param, UseGuards, Req, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Param, UseGuards, Req, ParseIntPipe, Query } from '@nestjs/common';
 import { Request } from 'express';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -89,5 +89,13 @@ export class ProjectsAuthController {
     @Req() req: Request,
   ) {
     return this.projectsService.getHackatimeProjects(id, req.user.userId);
+  }
+
+  @Delete(':id')
+  async deleteProject(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ) {
+    return this.projectsService.deleteProject(id, req.user.userId);
   }
 }

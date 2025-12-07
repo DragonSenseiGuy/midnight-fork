@@ -750,4 +750,31 @@ export class ProjectsService {
 
     return leaderboard;
   }
+
+  async deleteProject(projectId: number, userId: number) {
+    const project = await this.prisma.project.findUnique({
+      where: { projectId },
+      include: {
+        submissions: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    if (project.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    if (project.submissions.length > 0) {
+      throw new ForbiddenException('Cannot delete project with submissions');
+    }
+
+    await this.prisma.project.delete({
+      where: { projectId },
+    });
+
+    return { deleted: true, projectId };
+  }
 }
