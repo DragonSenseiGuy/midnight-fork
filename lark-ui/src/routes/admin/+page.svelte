@@ -190,10 +190,11 @@ let metrics = $state<AdminMetrics>(
 let shopItems = $state<ShopItem[]>(data.shopItems ?? []);
 let shopTransactions = $state<ShopTransaction[]>(data.shopTransactions ?? []);
 
-let submissionsLoaded = $state((data.submissions?.length ?? 0) > 0);
-let projectsLoaded = $state((data.projects?.length ?? 0) > 0);
-let usersLoaded = $state((data.users?.length ?? 0) > 0);
-let shopLoaded = $state((data.shopItems?.length ?? 0) > 0 || (data.shopTransactions?.length ?? 0) > 0);
+let submissionsLoaded = $state(false);
+let projectsLoaded = $state(false);
+let usersLoaded = $state(false);
+let shopLoaded = $state(false);
+let initialLoadDone = $state(false);
 
 let searchQuery = $state('');
 let selectedStatuses = $state<Set<string>>(new Set());
@@ -1042,6 +1043,13 @@ async function recalculateAllProjectsHours() {
 			giftCodeSending = false;
 		}
 	}
+
+$effect(() => {
+	if (!initialLoadDone && typeof window !== 'undefined') {
+		initialLoadDone = true;
+		loadSubmissions(true);
+	}
+});
 
 $effect(() => {
 	if (submissions.length === 0) {

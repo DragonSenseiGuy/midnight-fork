@@ -140,6 +140,9 @@ export class AuthService {
         otpCode: otp,
         otpExpiresAt: { gt: new Date() },
         isVerified: false,
+        user: {
+          email: email,
+        },
       },
       include: { user: true },
     });

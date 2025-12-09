@@ -22,34 +22,31 @@ export const load: PageServerLoad = async ({ fetch }) => {
     throw redirect(302, '/app/projects');
   }
 
-  const [submissionsResponse, projectsResponse, usersResponse, metricsResponse, shopItemsResponse, shopTransactionsResponse] = await Promise.all([
-    fetch(`${apiUrl}/api/admin/submissions`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/admin/projects`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/admin/users`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/admin/metrics`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/shop/admin/items`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/shop/admin/transactions`, { credentials: 'include' }),
-  ]);
+  let metrics = {
+    totalHackatimeHours: 0,
+    totalApprovedHours: 0,
+    totalUsers: 0,
+    totalProjects: 0,
+    totalSubmittedHackatimeHours: 0,
+  };
 
-  if (!submissionsResponse.ok || !projectsResponse.ok || !usersResponse.ok || !metricsResponse.ok) {
-    throw error(500, 'Failed to load admin resources');
+  try {
+    const metricsResponse = await fetch(`${apiUrl}/api/admin/metrics`, { credentials: 'include' });
+    if (metricsResponse.ok) {
+      const metricsData = await metricsResponse.json();
+      metrics = metricsData.totals ?? metricsData;
+    }
+  } catch {
   }
-
-  const submissions = await submissionsResponse.json();
-  const projects = await projectsResponse.json();
-  const users = await usersResponse.json();
-  const metrics = await metricsResponse.json();
-  const shopItems = shopItemsResponse.ok ? await shopItemsResponse.json() : [];
-  const shopTransactions = shopTransactionsResponse.ok ? await shopTransactionsResponse.json() : [];
 
   return {
     user,
-    submissions,
-    projects,
-    users,
-    metrics: metrics.totals ?? metrics,
-    shopItems,
-    shopTransactions,
+    submissions: [],
+    projects: [],
+    users: [],
+    metrics,
+    shopItems: [],
+    shopTransactions: [],
     apiUrl,
   };
 };
