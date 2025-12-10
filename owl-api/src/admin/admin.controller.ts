@@ -120,4 +120,11 @@ export class AdminController {
   async getTotals() {
     return this.adminService.getTotals();
   }
+
+  @Get('reviewer-leaderboard')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  async getReviewerLeaderboard() {
+    return this.adminService.getReviewerLeaderboard();
+  }
 }

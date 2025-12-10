@@ -83,6 +83,17 @@ type AdminMetrics = {
 	totalSubmittedHackatimeHours: number;
 };
 
+type ReviewerStats = {
+	reviewerId: string;
+	firstName: string | null;
+	lastName: string | null;
+	email: string | null;
+	approved: number;
+	rejected: number;
+	total: number;
+	lastReviewedAt: string | null;
+};
+
 	type Tab = 'submissions' | 'projects' | 'users' | 'shop' | 'giftcodes';
 	type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 	type SortField = 'createdAt' | 'projectTitle' | 'userName' | 'approvalStatus' | 'nowHackatimeHours' | 'approvedHours';
@@ -296,6 +307,10 @@ let giftCodeSending = $state(false);
 let giftCodeError = $state('');
 let giftCodeSuccess = $state('');
 let giftCodeResults = $state<Array<{ email: string; code: string; success: boolean; error?: string }>>([]);
+
+let reviewerLeaderboard = $state<ReviewerStats[]>([]);
+let leaderboardLoading = $state(false);
+let leaderboardLoaded = $state(false);
 
 let submissionDrafts = $state<Record<number, { approvalStatus: string; approvedHours: string; userFeedback: string; hoursJustification: string; sendEmailNotification: boolean }>>(
 	buildSubmissionDrafts(data.submissions ?? [])
@@ -798,9 +813,13 @@ async function recalculateAllProjectsHours() {
 			}
 
 			submissionSuccess = { ...submissionSuccess, [submission.submissionId]: 'Submission quick approved and synced to Airtable' };
+			
+			const currentSubmissionId = submission.submissionId;
 			await loadSubmissions();
 			await loadProjects();
 			await loadMetrics();
+			
+			advanceToNextSubmission(currentSubmissionId);
 		} catch (err) {
 			submissionErrors = {
 				...submissionErrors,
@@ -817,9 +836,10 @@ async function recalculateAllProjectsHours() {
 			approvalStatus: 'rejected',
 			approvedHours: '0',
 		};
-		// Quick Deny always sends email if the toggle is on, or uses toggle state
 		const shouldSendEmail = submissionDrafts[submissionId].sendEmailNotification;
 		await saveSubmission(submissionId, shouldSendEmail);
+		
+		advanceToNextSubmission(submissionId);
 	}
 
 	async function recalculateSubmissionHours(submissionId: number, projectId: number) {
@@ -959,6 +979,48 @@ async function recalculateAllProjectsHours() {
 			console.error('Failed to load gift codes:', err);
 		} finally {
 			giftCodesLoading = false;
+		}
+	}
+
+	async function loadReviewerLeaderboard() {
+		leaderboardLoading = true;
+		try {
+			const response = await fetch(`${apiUrl}/api/admin/reviewer-leaderboard`, {
+				credentials: 'include',
+			});
+			if (response.ok) {
+				reviewerLeaderboard = await response.json();
+				leaderboardLoaded = true;
+			}
+		} catch (err) {
+			console.error('Failed to load reviewer leaderboard:', err);
+		} finally {
+			leaderboardLoading = false;
+		}
+	}
+
+	function getNextPendingSubmission(currentSubmissionId: number): { projectId: number; submissionId: number } | null {
+		const projectIds = Object.keys(filteredGroupedSubmissions).map(Number);
+		
+		for (const projectId of projectIds) {
+			const projectSubmissions = filteredGroupedSubmissions[projectId];
+			for (const submission of projectSubmissions) {
+				if (submission.submissionId !== currentSubmissionId && submission.approvalStatus === 'pending') {
+					return { projectId, submissionId: submission.submissionId };
+				}
+			}
+		}
+		return null;
+	}
+
+	function advanceToNextSubmission(currentSubmissionId: number) {
+		const next = getNextPendingSubmission(currentSubmissionId);
+		if (next) {
+			selectedSubmissionByProject = { ...selectedSubmissionByProject, [next.projectId]: next.submissionId };
+			const element = document.getElementById(`submission-card-${next.projectId}`);
+			if (element) {
+				element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
 		}
 	}
 
@@ -1525,6 +1587,63 @@ function normalizeUrl(url: string | null): string | null {
 					</div>
 				</div>
 
+				<div class="rounded-2xl border border-gray-700 bg-gray-900/70 backdrop-blur p-6 space-y-4">
+					<div class="flex items-center justify-between">
+						<h3 class="text-lg font-semibold flex items-center gap-2">
+							🏆 Reviewer Leaderboard
+						</h3>
+						<button
+							class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors text-sm"
+							onclick={loadReviewerLeaderboard}
+							disabled={leaderboardLoading}
+						>
+							{leaderboardLoading ? 'Loading...' : (leaderboardLoaded ? 'Refresh' : 'Load Leaderboard')}
+						</button>
+					</div>
+
+					{#if leaderboardLoaded && reviewerLeaderboard.length > 0}
+						<div class="overflow-x-auto">
+							<table class="w-full">
+								<thead class="bg-gray-800/50">
+									<tr>
+										<th class="px-4 py-3 text-left text-sm font-semibold text-gray-300">#</th>
+										<th class="px-4 py-3 text-left text-sm font-semibold text-gray-300">Reviewer</th>
+										<th class="px-4 py-3 text-center text-sm font-semibold text-green-400">Approved</th>
+										<th class="px-4 py-3 text-center text-sm font-semibold text-red-400">Rejected</th>
+										<th class="px-4 py-3 text-center text-sm font-semibold text-purple-400">Total</th>
+										<th class="px-4 py-3 text-left text-sm font-semibold text-gray-300">Last Review</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-700">
+									{#each reviewerLeaderboard as reviewer, index}
+										<tr class="hover:bg-gray-800/30 {index === 0 ? 'bg-yellow-500/10' : index === 1 ? 'bg-gray-400/10' : index === 2 ? 'bg-amber-600/10' : ''}">
+											<td class="px-4 py-3 text-sm font-bold {index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-500' : 'text-gray-400'}">
+												{#if index === 0}🥇{:else if index === 1}🥈{:else if index === 2}🥉{:else}{index + 1}{/if}
+											</td>
+											<td class="px-4 py-3">
+												<p class="text-sm font-medium text-white">
+													{reviewer.firstName || ''} {reviewer.lastName || ''}
+												</p>
+												<p class="text-xs text-gray-400">{reviewer.email || `ID: ${reviewer.reviewerId}`}</p>
+											</td>
+											<td class="px-4 py-3 text-center text-sm font-semibold text-green-400">{reviewer.approved}</td>
+											<td class="px-4 py-3 text-center text-sm font-semibold text-red-400">{reviewer.rejected}</td>
+											<td class="px-4 py-3 text-center text-sm font-bold text-purple-400">{reviewer.total}</td>
+											<td class="px-4 py-3 text-sm text-gray-400">
+												{reviewer.lastReviewedAt ? formatDate(reviewer.lastReviewedAt) : '—'}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else if leaderboardLoaded}
+						<p class="text-gray-400 text-sm">No reviews recorded yet.</p>
+					{:else}
+						<p class="text-gray-500 text-sm">Click "Load Leaderboard" to see reviewer stats.</p>
+					{/if}
+				</div>
+
 				{#if submissionsLoading}
 					<div class="py-12 text-center text-gray-300">Loading submissions...</div>
 				{:else if Object.keys(filteredGroupedSubmissions).length === 0}
@@ -1533,11 +1652,11 @@ function normalizeUrl(url: string | null): string | null {
 					</div>
 				{:else}
 					<div class="grid gap-6">
-						{#each Object.entries(filteredGroupedSubmissions) as [projectIdStr, projectSubmissions]}
-							{@const projectId = Number(projectIdStr)}
-							{@const selectedSubmissionId = selectedSubmissionByProject[projectId] ?? projectSubmissions[0].submissionId}
-							{@const selectedSubmission = projectSubmissions.find((s: AdminSubmission) => s.submissionId === selectedSubmissionId) ?? projectSubmissions[0]}
-							<div class="rounded-2xl border border-gray-700 bg-gray-900/70 backdrop-blur p-6 space-y-4">
+					{#each Object.entries(filteredGroupedSubmissions) as [projectIdStr, projectSubmissions]}
+						{@const projectId = Number(projectIdStr)}
+						{@const selectedSubmissionId = selectedSubmissionByProject[projectId] ?? projectSubmissions[0].submissionId}
+						{@const selectedSubmission = projectSubmissions.find((s: AdminSubmission) => s.submissionId === selectedSubmissionId) ?? projectSubmissions[0]}
+						<div id="submission-card-{projectId}" class="rounded-2xl border border-gray-700 bg-gray-900/70 backdrop-blur p-6 space-y-4">
 								{#if projectSubmissions.length > 1}
 									<div class="mb-4 pb-4 border-b border-gray-700">
 										<h4 class="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">Submissions ({projectSubmissions.length})</h4>

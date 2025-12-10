@@ -873,6 +873,73 @@ export class AdminService {
     return users;
   }
 
+  async getReviewerLeaderboard() {
+    const reviewedSubmissions = await this.prisma.submission.findMany({
+      where: {
+        reviewedBy: { not: null },
+        approvalStatus: { in: ['approved', 'rejected'] },
+      },
+      select: {
+        reviewedBy: true,
+        approvalStatus: true,
+        reviewedAt: true,
+      },
+    });
+
+    const reviewerStats = new Map<string, { approved: number; rejected: number; total: number; lastReviewedAt: Date | null }>();
+
+    for (const submission of reviewedSubmissions) {
+      if (!submission.reviewedBy) continue;
+
+      const stats = reviewerStats.get(submission.reviewedBy) || { approved: 0, rejected: 0, total: 0, lastReviewedAt: null };
+      
+      if (submission.approvalStatus === 'approved') {
+        stats.approved++;
+      } else if (submission.approvalStatus === 'rejected') {
+        stats.rejected++;
+      }
+      stats.total++;
+
+      if (submission.reviewedAt && (!stats.lastReviewedAt || submission.reviewedAt > stats.lastReviewedAt)) {
+        stats.lastReviewedAt = submission.reviewedAt;
+      }
+
+      reviewerStats.set(submission.reviewedBy, stats);
+    }
+
+    const reviewerUserIds = Array.from(reviewerStats.keys()).map(id => parseInt(id)).filter(id => !isNaN(id));
+    
+    const reviewerUsers = await this.prisma.user.findMany({
+      where: { userId: { in: reviewerUserIds } },
+      select: {
+        userId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+
+    const userMap = new Map(reviewerUsers.map(u => [u.userId.toString(), u]));
+
+    const leaderboard = Array.from(reviewerStats.entries()).map(([reviewerId, stats]) => {
+      const user = userMap.get(reviewerId);
+      return {
+        reviewerId,
+        firstName: user?.firstName || null,
+        lastName: user?.lastName || null,
+        email: user?.email || null,
+        approved: stats.approved,
+        rejected: stats.rejected,
+        total: stats.total,
+        lastReviewedAt: stats.lastReviewedAt,
+      };
+    });
+
+    leaderboard.sort((a, b) => b.total - a.total);
+
+    return leaderboard;
+  }
+
   private async recalculateProjectInternal(
     project: {
       projectId: number;
