@@ -35,7 +35,16 @@ export const actions = {
 
         if (!response || !response.ok) {
             const urlParams = new URLSearchParams();
-            urlParams.set("error", responseData.error || responseData.message || 'An error occurred');
+            const errorMessage = response?.status === 429
+                ? 'You are ratelimited. Please regenerate a new OTP in a few minutes and try again.'
+                : (responseData.error || responseData.message || 'An error occurred');
+
+            urlParams.set("error", errorMessage);
+
+            if (email) {
+                urlParams.set("email", email as string);
+            }
+
             return redirect(302, `/login?${urlParams.toString()}`);
         }
 

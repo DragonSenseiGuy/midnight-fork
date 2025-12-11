@@ -17,8 +17,9 @@ export class AuthController {
   }
 
   @Post('verify-otp')
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.verifyOtp(verifyOtpDto);
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const forwarded = (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || '';
+    const result = await this.authService.verifyOtp(verifyOtpDto, forwarded);
     
     if (result.sessionId) {
       const cookieOptions = {
