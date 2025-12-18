@@ -219,6 +219,11 @@ let selectedProjectTypes = $state<Set<string>>(new Set());
 let sortField = $state<SortField>('createdAt');
 let sortDirection = $state<SortDirection>('asc');
 
+let showFraudProjects = $state(true);
+let showSusProjects = $state(true);
+let showFraudSubmissions = $state(true);
+let showSusSubmissions = $state(true);
+
 function getDefaultDateRange() {
 	const today = new Date();
 	const defaultStart = new Date('2025-10-10');
@@ -1392,6 +1397,16 @@ function matchesPriorityFilter(submission: AdminSubmission): boolean {
 	return priorityUserIds.has(submission.project.user.userId);
 }
 
+function matchesFraudFilter(submission: AdminSubmission): boolean {
+	if (showFraudSubmissions) return true;
+	return !submission.project.isFraud;
+}
+
+function matchesSusFilter(submission: AdminSubmission): boolean {
+	if (showSusSubmissions) return true;
+	return !submission.project.user.isSus;
+}
+
 function compareSubmissions(a: AdminSubmission, b: AdminSubmission): number {
 	let comparison = 0;
 	
@@ -1449,7 +1464,9 @@ let filteredGroupedSubmissions = $derived.by(() => {
 			matchesSearch(s, searchQuery) &&
 			matchesStatusFilters(s) &&
 			matchesProjectTypeFilters(s) &&
-			matchesPriorityFilter(s)
+			matchesPriorityFilter(s) &&
+			matchesFraudFilter(s) &&
+			matchesSusFilter(s)
 		);
 		
 		if (projectSubmissions.length > 0) {
@@ -1480,6 +1497,8 @@ let filteredSubmissions = $derived(
 		.filter((s) => matchesStatusFilters(s))
 		.filter((s) => matchesProjectTypeFilters(s))
 		.filter((s) => matchesPriorityFilter(s))
+		.filter((s) => matchesFraudFilter(s))
+		.filter((s) => matchesSusFilter(s))
 		.sort(compareSubmissions)
 );
 
@@ -1681,7 +1700,7 @@ function normalizeUrl(url: string | null): string | null {
 						</div>
 					</div>
 
-					<div class="grid gap-4 md:grid-cols-5">
+					<div class="grid gap-4 md:grid-cols-6">
 						<div>
 							<div class="block text-sm font-medium text-gray-300 mb-2">Priority Filter</div>
 							<div class="flex flex-wrap gap-2">
@@ -1800,6 +1819,28 @@ function normalizeUrl(url: string | null): string | null {
 										Clear
 									</button>
 								{/if}
+							</div>
+						</div>
+
+						<div>
+							<div class="block text-sm font-medium text-gray-300 mb-2">Filter Fraud/Sus</div>
+							<div class="flex flex-col gap-2">
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input
+										type="checkbox"
+										bind:checked={showFraudSubmissions}
+										class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-2"
+									/>
+									<span class="text-sm text-gray-300">Show fraud</span>
+								</label>
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input
+										type="checkbox"
+										bind:checked={showSusSubmissions}
+										class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-2"
+									/>
+									<span class="text-sm text-gray-300">Show sus</span>
+								</label>
 							</div>
 						</div>
 
@@ -2275,27 +2316,69 @@ function normalizeUrl(url: string | null): string | null {
 			</section>
 		{:else if activeTab === 'projects'}
 			<section class="space-y-4">
-				<div class="flex items-center justify-between">
+				<div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 					<h2 class="text-2xl font-semibold">Projects</h2>
-					<button
-						class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors"
-						onclick={async () => {
-							await loadProjects();
-							await loadUsers();
-						}}
-					>
-						Refresh
-					</button>
+					<div class="flex flex-wrap items-center gap-4">
+						<div class="flex items-center gap-3">
+							<label class="flex items-center gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									bind:checked={showFraudProjects}
+									class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-2"
+								/>
+								<span class="text-sm text-gray-300">Show fraud projects</span>
+							</label>
+							<label class="flex items-center gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									bind:checked={showSusProjects}
+									class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-2"
+								/>
+								<span class="text-sm text-gray-300">Show sus projects</span>
+							</label>
+						</div>
+						<button
+							class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors"
+							onclick={async () => {
+								await loadProjects();
+								await loadUsers();
+							}}
+						>
+							Refresh
+						</button>
+					</div>
 				</div>
 
 				{#if projectsLoading}
 					<div class="py-12 text-center text-gray-300">Loading projects...</div>
-				{:else if projects.length === 0}
-					<div class="py-12 text-center text-gray-300">No projects available.</div>
 				{:else}
-					<div class="grid gap-6">
-						{#each projects as project (project.projectId)}
-							<div class="rounded-2xl border border-gray-700 bg-gray-900/70 backdrop-blur p-6 space-y-4">
+					{@const filteredProjects = projects.filter(project => {
+						if (!showFraudProjects && project.isFraud) return false;
+						if (!showSusProjects && project.user.isSus) return false;
+						return true;
+					})}
+					{#if filteredProjects.length === 0}
+						<div class="py-12 text-center text-gray-300">No projects available.</div>
+					{:else}
+						<div class="grid gap-6">
+							{#each filteredProjects as project (project.projectId)}
+							<div class={`rounded-2xl border bg-gray-900/70 backdrop-blur p-6 space-y-4 ${
+								project.user.isSus
+									? 'border-yellow-500'
+									: project.isFraud
+									? 'border-red-500'
+									: 'border-gray-700'
+							}`}>
+								{#if project.isFraud}
+									<div class="bg-red-600/20 border-2 border-red-500 rounded-lg p-3 mb-4">
+										<p class="text-red-300 font-bold text-center uppercase tracking-wide">⚠️ FRAUD FLAGGED</p>
+									</div>
+								{/if}
+								{#if project.user.isSus}
+									<div class="bg-yellow-600/20 border-2 border-yellow-500 rounded-lg p-3 mb-4">
+										<p class="text-yellow-300 font-bold text-center uppercase tracking-wide">⚠️ SUS FLAGGED</p>
+									</div>
+								{/if}
 								<div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
 									<div>
 										<h3 class="text-xl font-semibold">{project.projectTitle}</h3>
@@ -2356,13 +2439,33 @@ function normalizeUrl(url: string | null): string | null {
 								</div>
 
 								<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-									<div class="flex gap-3">
+									<div class="flex flex-wrap gap-3">
 										<button
 											class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 transition-colors disabled:bg-gray-700 disabled:cursor-not-allowed"
 												onclick={() => recalculateProject(project.projectId)}
 											disabled={projectBusy[project.projectId]}
 										>
 											{projectBusy[project.projectId] ? 'Processing...' : 'Recalculate hours'}
+										</button>
+										<button
+											class={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+												project.user.isSus
+													? 'bg-yellow-600/20 border-yellow-500 text-yellow-300 hover:bg-yellow-600/30'
+													: 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+											}`}
+											onclick={() => toggleSusFlag(project.user.userId, project.user.isSus)}
+										>
+											{project.user.isSus ? '⚠️ Sus Flagged' : 'Flag as Sus'}
+										</button>
+										<button
+											class={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+												project.isFraud
+													? 'bg-red-600/20 border-red-500 text-red-300 hover:bg-red-600/30'
+													: 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+											}`}
+											onclick={() => toggleFraudFlag(project.projectId, project.isFraud)}
+										>
+											{project.isFraud ? '🚫 Fraud Flagged' : 'Flag as Fraud'}
 										</button>
 										<button
 											class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 transition-colors disabled:bg-gray-700 disabled:cursor-not-allowed"
@@ -2382,7 +2485,8 @@ function normalizeUrl(url: string | null): string | null {
 								</div>
 							</div>
 						{/each}
-					</div>
+						</div>
+					{/if}
 				{/if}
 			</section>
 		{:else if activeTab === 'users'}
