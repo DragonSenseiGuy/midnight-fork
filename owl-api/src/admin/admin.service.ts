@@ -1315,6 +1315,43 @@ export class AdminService {
     return Math.round((totalSeconds / 3600) * 10) / 10;
   }
 
+  async getGlobalSettings() {
+    let settings = await this.prisma.globalSettings.findUnique({
+      where: { id: 'global' },
+    });
+
+    // Create default settings if they don't exist
+    if (!settings) {
+      settings = await this.prisma.globalSettings.create({
+        data: {
+          id: 'global',
+          submissionsFrozen: false,
+        },
+      });
+    }
+
+    return settings;
+  }
+
+  async toggleSubmissionsFrozen(isFrozen: boolean, adminUserId: number) {
+    const settings = await this.prisma.globalSettings.upsert({
+      where: { id: 'global' },
+      update: {
+        submissionsFrozen: isFrozen,
+        submissionsFrozenAt: isFrozen ? new Date() : null,
+        submissionsFrozenBy: isFrozen ? adminUserId.toString() : null,
+      },
+      create: {
+        id: 'global',
+        submissionsFrozen: isFrozen,
+        submissionsFrozenAt: isFrozen ? new Date() : null,
+        submissionsFrozenBy: isFrozen ? adminUserId.toString() : null,
+      },
+    });
+
+    return settings;
+  }
+
   async getPriorityUsers() {
     const priorityUsers = await this.prisma.$queryRaw<Array<{
       user_id: number;

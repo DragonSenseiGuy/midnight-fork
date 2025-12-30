@@ -149,6 +149,14 @@ export class ProjectsService {
       throw new ForbiddenException('Access denied');
     }
 
+    // Check if submissions are globally frozen
+    const globalSettings = await this.prisma.globalSettings.findUnique({
+      where: { id: 'global' },
+    });
+    if (globalSettings?.submissionsFrozen) {
+      throw new ForbiddenException('Submissions are currently frozen. Please try again later.');
+    }
+
     // Validate required user fields
     const user = project.user;
     if (!user.firstName || !user.lastName || !user.email || !user.birthday) {

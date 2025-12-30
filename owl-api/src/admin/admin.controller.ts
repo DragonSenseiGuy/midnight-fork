@@ -196,4 +196,21 @@ export class AdminController {
   async getPriorityUsers() {
     return this.adminService.getPriorityUsers();
   }
+
+  @Get('settings')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  async getGlobalSettings() {
+    return this.adminService.getGlobalSettings();
+  }
+
+  @Put('settings/submissions-frozen')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  async toggleSubmissionsFrozen(
+    @Body() body: { submissionsFrozen: boolean },
+    @Req() req: Request,
+  ) {
+    return this.adminService.toggleSubmissionsFrozen(body.submissionsFrozen, req.user.userId);
+  }
 }

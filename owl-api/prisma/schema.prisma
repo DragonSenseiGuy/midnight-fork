@@ -329,3 +329,13 @@ model GiftCode {
   @@index([email])
   @@map("gift_codes")
 }
+
+model GlobalSettings {
+  id                    String   @id @default("global")
+  submissionsFrozen     Boolean  @default(false) @map("submissions_frozen")
+  submissionsFrozenAt   DateTime? @map("submissions_frozen_at")
+  submissionsFrozenBy   String?  @map("submissions_frozen_by")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("global_settings")
+}

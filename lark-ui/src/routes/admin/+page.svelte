@@ -324,6 +324,16 @@ let reviewerLeaderboard = $state<ReviewerStats[]>([]);
 let leaderboardLoading = $state(false);
 let leaderboardLoaded = $state(false);
 
+type GlobalSettings = {
+	id: string;
+	submissionsFrozen: boolean;
+	submissionsFrozenAt: string | null;
+	submissionsFrozenBy: string | null;
+	updatedAt: string;
+};
+let globalSettings = $state<GlobalSettings | null>(null);
+let globalSettingsLoading = $state(false);
+
 type PriorityUser = {
 	userId: number;
 	email: string;
@@ -1096,6 +1106,43 @@ async function recalculateAllProjectsHours() {
 		}
 	}
 
+	async function loadGlobalSettings() {
+		globalSettingsLoading = true;
+		try {
+			const response = await fetch(`${apiUrl}/api/admin/settings`, {
+				credentials: 'include',
+			});
+			if (response.ok) {
+				globalSettings = await response.json();
+			}
+		} catch (err) {
+			console.error('Failed to load global settings:', err);
+		} finally {
+			globalSettingsLoading = false;
+		}
+	}
+
+	async function toggleGlobalSubmissionsFrozen() {
+		if (!globalSettings) return;
+		globalSettingsLoading = true;
+		try {
+			const response = await fetch(`${apiUrl}/api/admin/settings/submissions-frozen`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ submissionsFrozen: !globalSettings.submissionsFrozen }),
+			});
+
+			if (response.ok) {
+				globalSettings = await response.json();
+			}
+		} catch (err) {
+			console.error('Failed to toggle submissions frozen:', err);
+		} finally {
+			globalSettingsLoading = false;
+		}
+	}
+
 	async function toggleSusFlag(userId: number, currentValue: boolean) {
 		try {
 			const response = await fetch(`${apiUrl}/api/admin/users/${userId}/sus-flag`, {
@@ -1121,7 +1168,9 @@ async function recalculateAllProjectsHours() {
 		if (activeTab === 'submissions') return;
 		activeTab = 'submissions';
 		if (!submissionsLoaded && !submissionsLoading) {
-			await loadSubmissions(false);
+			await Promise.all([loadSubmissions(false), loadGlobalSettings()]);
+		} else if (!globalSettings) {
+			await loadGlobalSettings();
 		}
 	}
 
@@ -1642,13 +1691,43 @@ function normalizeUrl(url: string | null): string | null {
 			<section class="space-y-4">
 				<div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 					<h2 class="text-2xl font-semibold">Submission Review Platform</h2>
-					<button
-						class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors"
-						onclick={() => loadSubmissions(false)}
-					>
-						Refresh
-					</button>
+					<div class="flex items-center gap-3">
+						{#if globalSettings}
+							<button
+								class={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
+									globalSettings.submissionsFrozen
+										? 'bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30'
+										: 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+								}`}
+								onclick={toggleGlobalSubmissionsFrozen}
+								disabled={globalSettingsLoading}
+							>
+								{#if globalSettingsLoading}
+									<span class="animate-spin">⟳</span>
+								{:else}
+									<span>{globalSettings.submissionsFrozen ? '🧊' : '▶️'}</span>
+								{/if}
+								{globalSettings.submissionsFrozen ? 'Submissions Frozen' : 'Freeze All Submissions'}
+							</button>
+						{/if}
+						<button
+							class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors"
+							onclick={() => loadSubmissions(false)}
+						>
+							Refresh
+						</button>
+					</div>
 				</div>
+
+				{#if globalSettings?.submissionsFrozen}
+					<div class="rounded-xl border border-blue-500 bg-blue-600/10 p-4 flex items-center gap-3">
+						<span class="text-2xl">🧊</span>
+						<div>
+							<p class="font-semibold text-blue-300">Submissions are currently frozen</p>
+							<p class="text-sm text-blue-400">Users cannot submit or resubmit projects until unfrozen.</p>
+						</div>
+					</div>
+				{/if}
 
 				<div class="rounded-2xl border border-gray-700 bg-gray-900/70 backdrop-blur p-6 space-y-6">
 					<div class="grid gap-4 md:grid-cols-2">
